@@ -1,0 +1,123 @@
+## Analýza moèu
+
+  Údaje, ktoré som si vybral k spracovaniu pochádzajú z datasetu urine, ktorý je súèas»ou balíèka boot. Ide o analýzu vzoriek moèu s cieµom zisti», èi urèité fyzikálne a chemické vlastnosti moèu mô¾u súvisie» s tvorbou kry¹tálov oxalátu vápenatého. Tento metabolit je najèastej¹ou príèinou vzniku oblièkových kameòov a jeho vznik súvisí s metabolickými poruchami.
+
+  Po nain¹talovaní balíèka boot, som zobrazil aké dáta dataset urine obsahuje.
+
+```{r}
+library(boot)
+head(urine)
+```
+  Dataset urine obsahuje 79 riadkov a 7 ståpcov s meranými premennými (r - indikátor prítomnosti kry¹tálov oxalátu vápenatého v moèi, gravity - ¹pecifická hmotnos» moèu, pH - pH moèu, osmo - osmolarita moèu, ktorá súvisí koncentráciou molekúl v moèi, cond - vodivos» moèu, ktorá súvisí s koncentráciou nabitých iónov v moèi, urea - koncentrácia moèoviny v moèi v mmol/l, calc - koncentrácia vápnika v moèi v mmol/l).
+
+  V prvom rade som chcel premenova» názvy ståpcov v tabuµke urine, tak aby im bolo rozumie» a nebolo treba hµada» význam skratiek v tabuµke. Na to som pou¾il funkciu rename, ktorá sa nachádza v balíèku dplyr a tabuµke som priradil nový názov.
+
+```{r}
+library(dplyr)
+URINE <- rename (urine, Pritomnost_Krystalov = r,
+               Hustota = gravity,
+               pH = ph,
+               Osmolarita = osmo,
+               Vodivost = cond,
+               Mocovina = urea,
+               Vapnik = calc)
+head(URINE)
+```
+
+  Tabuµka obsahuje merané premenné pre dve skupiny osôb, ktoré boli rozdelené podµa toho, èi sa u nich na¹la prítomnos» kry¹tálov oxalátu v moèi (Pritomnost_Krystalov = 1) alebo nena¹la (Pritomnost_Krystalov = 0).
+  
+##Osmolarita a Vápnik
+ 
+  Najprv som sa zameral na osmolaritu moèu a jej súvis s obsahom vápnika v moèi. Osmolarita roztoku vyjadruje mno¾stvo rozpustených èastíc v roztoku. Vápnik spolu s ïal¹ími minerálmi sa vyluèuje do moèu, kde mô¾e súvisie» so vznikom oxalátu vápenatého. Máme predpoklad, ¾e èím je vápnika v moèi viac, tým je väè¹ia pravdepodobnos» vzniku kry¹tálov oxalátu vápenatého. Grafické zobrazenie dát pre obe skupiny osôb nám mô¾e nieèo poveda».
+
+Graf 1.
+```{r}
+library(tidyverse)
+ggplot(data = URINE, aes(x = Osmolarita, y = Vapnik, color = 'red')) +
+  geom_point(mapping = aes(x = Osmolarita, y = Vapnik), color = 'blue') +
+  facet_wrap(~Pritomnost_Krystalov, ncol = 2) +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+
+
+  Získal som dva grafy. V prvom aj v druhom grafe sú koncentrácie vápnika v moèi v mmol/l vynesené oproti celkovej osmolarite moèu. Prvý graf ale zobrazuje hodnoty v skupine, kde sa kry¹tály oxalátu vápenatého nevytvorili a v grafe sú viditeµné ni¾¹ie koncentrácie vápnika pri pribli¾ne rovnakých hodnotách osmolarity moèu.
+  
+  Mô¾em dáta otestova» pomocou Mann-Whitney testu (wilcoxon test) a zisti» rozdelenie stredných hodnôt vápnika v moèi u oboch skupín.
+  
+```{r}
+wilcox.test(Vapnik ~ Pritomnost_Krystalov, data = URINE)
+```
+  P-value testu je 0,000007982, èo je menej ako hladina významnosti alfa = 0,05. Mô¾em teda poveda», stredná hodnota koncentrácie vápnika v skupine 1 sa lí¹i od strednej hodnoty koncentrácie vápnika v skupine 0 s p-value = 0,000007982. (táto p-value sa mi zdá a¾ príli¹ nízka)
+  
+
+
+  Dáta, pre obe skupin osôb, si mô¾me rozdeli» pomocou funkcie filter podµa prítomnosti kry¹tálov v moèi a pracova» s nimi osobitne.
+
+```{r}
+(Ziadne_Krystaly <- filter(URINE, Pritomnost_Krystalov == 0))
+(Krystaly <- filter(URINE,Pritomnost_Krystalov  == 1))
+```
+ 
+  Po rozdelení dát podµa prítomnosti kry¹tálov si urobím sumarizáciu dát pre obidve skupiny, pre ïal¹iu analýzu.
+  
+Tabuµka 1.
+```{r}
+summary(Ziadne_Krystaly)
+summary(Krystaly)
+```
+
+  Keï¾e som sa najprv zameral na koncentrácie vápnika (v mmol/l), z tabuµky 1. vidíme, ¾e v skupine 0 (bez kry¹tálov) je namerané minimum ni¾¹ie ako v skupine 1, naopak maximum v skupine 1 je ale takmer dvojnásobné pri porovnateµných osmolaritách.
+  
+  Pozrime sa ïalej na rozdelenie dát (Vápnik~Osmlarita) pre obidve skupiny. Podµa grafického zobrazenia oèakávam, ¾e rozdelenie nebude normálne. Zaujíma nás hlavne Q-Q graf.
+
+```{r}
+fit1 <- lm(Osmolarita ~ Vapnik, data = Krystaly)
+summary(fit1)
+plot(fit1)    
+```  
+
+
+
+```{r}
+fit0 <- lm(Osmolarita ~ Vapnik, data = Ziadne_Krystaly)
+summary(fit0)
+plot(fit0)
+```
+
+  Z Q-Q grafov vidím, ¾e koncentrácie vápnika oproti celkovej osmolarite nie sú normálne rozdelené. Platí to pre skupinu 0 aj 1. 
+  
+  
+  Pri bli¾¹om pohµade aj na graf 1. vidíme, ¾e v skupine 1 (skupina, ktorá má kry¹tály oxalátu v moèi prítomné) sú koncentrácie vápnika pri rovnakej osmolarite vy¹¹ie. Aj fitovacia priamka má vy¹¹í sklon. Mô¾eme teda usúdi», ¾e koncentrácia vápnika v moèi má vplyv na vznik kry¹tálov oxalátu. 
+
+##pH a moèovina
+ 
+  Ïalej sa mô¾em pokúsi» zisti», èi má na tvorbu kry¹tálov vplyv pH moèu. Dáta si mô¾em graficky zobrazi» pomocou boxplotu. 
+
+```{r}
+ggplot(data = URINE) +
+  geom_boxplot(mapping = aes(x = Pritomnost_Krystalov, y = pH, color = Pritomnost_Krystalov, group = as.factor(Pritomnost_Krystalov))) +
+  geom_jitter(mapping = aes(x = Pritomnost_Krystalov, y = pH, color = Pritomnost_Krystalov, group = as.factor(Pritomnost_Krystalov)))
+```
+
+  Literatúra ale hovorí, ¾e vplyv pH na vznik kry¹tálov je len minimálny, keï¾e pH moèu sa u zdravých µudí výrazne nemení a obèas sa tieto kry¹tály vyskytnú aj u µudí bez metabolických porúch. Na grafickom zobrazení dát nevidíme veµký rozdiel pre obe skupiny, len niekoµko väè¹ích odchýlok.
+  Prítomnos» kry¹tálov zrejme nebude silne súvisie» s pH moèu. 
+
+  Pozrime sa e¹te na koncentráciu moèoviny a jej vplyv na vznik kry¹tálov oxalátu. Dáta si mô¾eme opä» zobrazi» pomocou boxplotu.
+
+```{r}
+ggplot(data = URINE) +
+  geom_boxplot(mapping = aes(x = Pritomnost_Krystalov, y = Mocovina, color = Pritomnost_Krystalov, group = as.factor(Pritomnost_Krystalov))) +
+  geom_jitter(mapping = aes(x = Pritomnost_Krystalov, y = Mocovina, color = Pritomnost_Krystalov, group = as.factor(Pritomnost_Krystalov)))
+```
+ 
+  V tomto zobrazení je v skupine s prítomnos»ou kry¹tálov vy¹¹ia koncentrácia moèoviny, ale opä» sú tam aj záporné odchýlky, ktoré tvrdenie, ¾e vy¹¹í obsah moèoviny v moèi má vplyv na vznik kry¹tálov oxalátu vápenatého, nemô¾u jednoznaène potvdi».
+  
+  
+  Ïal¹ie premenné z tabuµky 1. nebudem skúma».
+
+##Záver:
+
+  Je pravdepodobné, ¾e vy¹¹ia koncentrácia vápnika v moèi má vplyv na vznik akry¹tálov oxalátu vápenatého ale vplyv ostatných meraných premenných neviem jednoznaène potvrdi».
+  
+  Som si takmer istý, ¾e som niektoré dáta nesprávne interpretoval alebo nesprávne pochopil, keï¾e sa témou analýzy moèu nezaoberám.
